@@ -1,7 +1,7 @@
 # s7scan  
 
 ## General description
-**s7scan** is a tool that scans networks, enumerates Siemens PLCs and gathers basic information about them, such as PLC firmware and hardwaare version, network configuration and security parameters.
+**s7scan** is a tool that scans networks, enumerates Siemens PLCs and gathers basic information about them, such as PLC firmware and hardware version, network configuration and security parameters.
 It is completely written on Python.  
 The tool uses S7 protocol to connect to talk toPLCs. More specifically, it performs "Read SZL" to get information about controllers. Formats of these requests are documented in "Siemens SIMATIC System Software for S7-300/400 System and
 Standard Functions. Reference manual", which can be found at the following link:  https://cache.industry.siemens.com/dl/files/574/1214574/att_44504/v1/SFC_e.pdf  
