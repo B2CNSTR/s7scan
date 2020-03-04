@@ -64,7 +64,8 @@ def get_user_args(argv):
         usage="s7scan [options] [addresses]...",
         description="""Scan network for Siemens PLC devices. \
         Supports LLC- and TCP/IP based networks. \
-        Uses S7 to communicate to PLCs"""
+        Uses S7 to communicate to PLCs. \
+        example: python s7scan.py --tcp --timeout 30 --log-dir /etc/log.txt 192.168.1.10"""
         )
     parser.add_argument("--llc", action='store_const',
                         const=True, default=False, dest='is_llc',
