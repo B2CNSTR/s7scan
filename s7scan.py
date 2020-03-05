@@ -7,23 +7,9 @@ import pickle
 import datetime
 from collections import OrderedDict
 from argparse import ArgumentParser
-# sys.path.append('./third_parties')
 from scapy.arch import get_if_hwaddr
 from scapy.layers.l2 import LLC, SNAP
 from protocols import s7, cotp, s01fd, ether
-
-S7SCAN_LOG_FILE = "scan_log.txt"
-S7SCAN_PLC_FILE = "plc_data.dat"
-
-
-def ask_yes_no():
-    valid = {"yes": True, "y": True, "no": False, "n": False}
-    while True:
-        choice = raw_input().lower()
-        if choice in valid:
-            return valid[choice]
-        else:
-            sys.stdout.write("Please respond with 'yes' or 'no'\n")
 
 
 def get_ip_list(mask):
@@ -64,8 +50,7 @@ def get_user_args(argv):
         usage="s7scan [options] [addresses]...",
         description="""Scan network for Siemens PLC devices. \
         Supports LLC- and TCP/IP based networks. \
-        Uses S7 to communicate to PLCs. \
-        example: python s7scan.py --tcp --timeout 30 --log-dir /etc/log.txt 192.168.1.10/24"""
+        Uses S7 to communicate to PLCs"""
         )
     parser.add_argument("--llc", action='store_const',
                         const=True, default=False, dest='is_llc',
@@ -75,26 +60,11 @@ def get_user_args(argv):
                         help="Perform TCP network scan")
     parser.add_argument("--iface", default="", dest='iface',
                         help="Network interface to use (required for LLC scan only)")
-    parser.add_argument("--tcp-hosts", dest="tcp_hosts", help="""Scan TCP hosts from FILE. \
-        TCP host list is a list of IP-addresses. Each address must be placed \
-        on a separate line""",
-                        metavar="FILE")
-    parser.add_argument("--llc-hosts", dest="llc_hosts", help="""Scan LLC hosts from FILE. \
-        LLC host list is a list of MAC-addresses. Each address must be placed \
-        on a separate line""",
-                        metavar="FILE")
     parser.add_argument("--ports", dest="ports",
                         help="Scan ports from PORTS (for TCP/IP only)",
                         metavar="PORTS", default="102")
     parser.add_argument("--timeout", dest="timeout", default=0,
                         help="Receive timeout (seconds). How long to wait for server responses")
-    parser.add_argument("--log-dir", dest="log_dir",
-                        help="Path to the directory where scan results will be stored",
-                        metavar="LOG_DIR",
-                        default=os.path.join(".", "s7scan_{}".format(datetime.datetime.now().strftime("%Y%m%d_%H%M"))))
-    parser.add_argument("--no-log", action='store_const',
-                        const=True, default=False, dest='no_log',
-                        help="Disable saving scan results in files")
     parser.add_argument("addresses", nargs="*")
     # Parse arguments and retrun them to caller
     args = parser.parse_args(argv)
@@ -120,22 +90,6 @@ def validate_user_args(args):
     tcp_scan_hosts = []
     llc_scan_hosts = []
     # Read args.tcp_hosts file contents if --tcp was specified
-    if args.is_tcp:
-        if args.tcp_hosts:
-            try:
-                tcp_scan_hosts = [line.strip() for line in open(args.tcp_hosts, 'r').readlines()]
-            except IOError:
-                print("Can't open file {}".format(args.tcp_hosts))
-                return False
-    # Read args.llc_hosts file contents if --llc was specified
-    if args.is_llc:
-        if args.llc_hosts:
-            try:
-                llc_scan_hosts = [line.strip() for line in open(args.llc_hosts, 'r').readlines()]
-            except IOError:
-                print("Can't open file {}".format(args.llc_hosts))
-                return False
-    # Add addresses from args.addresses
     if args.is_tcp:
         for addr in args.addresses:
             tcp_scan_hosts.extend(get_ip_list(addr) if '/' in addr else [addr])
@@ -168,35 +122,9 @@ def validate_user_args(args):
             print("Incorrect port value specified")
             return False
         args.ports = scan_ports
-    # Check whether the directory for log files exists if args.no_log is not specified
-    if not args.no_log:
-        logfile = os.path.join(args.log_dir, S7SCAN_LOG_FILE)
-        plcfile = os.path.join(args.log_dir, S7SCAN_PLC_FILE)
-        if not os.path.isdir(args.log_dir):
-            # The directory does not exist. Create it now
-            try:
-                os.makedirs(args.log_dir)
-                open(logfile, "wb")
-                open(plcfile, "wb")
-            except:
-                print("Error: unable to create directory for log files {}. Please check access rights".format(args.log_dir))
-                return False
-        else:
-            # The directory already exists. Check whether log files exist in it
-            if os.path.isfile(logfile) or os.path.isfile(plcfile):
-                print("The log files already exist in specified log directory. Do you want to override them?")
-                if not ask_yes_no():
-                    print("Cancelled")
-                    return False
-                else:
-                    try:
-                        open(logfile, "wb")
-                        open(plcfile, "wb")
-                    except IOError:
-                        print("Error: unable to create access log files. Please check access rights")
-                        return False
-    else:
-        args.log_dir = None
+
+	args.log_dir = None
+
     # Validate timeout value
     try:
         args.timeout = int(args.timeout)
@@ -300,12 +228,8 @@ class PLC_Scanner():
         for arg in sys.argv:
             self.results["Command line arguments"].append(arg.decode(sys.stdin.encoding).encode("utf-8"))
         self.plcs = OrderedDict()
-        if log_dir:
-            self.logfile = open(os.path.join(log_dir, S7SCAN_LOG_FILE), "wb")
-            self.plcfile = open(os.path.join(log_dir, S7SCAN_PLC_FILE), "wb")
-        else:
-            self.logfile = None
-            self.plcfile = None
+        self.logfile = None
+        self.plcfile = None
         self.silent = False
     """
     Reset scanner and configure it to use another protocol without using
@@ -325,10 +249,7 @@ class PLC_Scanner():
         self._is_llc = is_llc
 
     def log_write(self, log_str):
-        if not self.silent:
-            print(log_str)
-        if self.logfile:
-            self.logfile.write(log_str + "\r\n")
+        print(log_str)
 
     def log_flush(self):
         if self.logfile:
@@ -480,7 +401,7 @@ class PLC_Scanner():
 
 
 def main():
-    print("s7scan v1.03 [Python 2] [Scapy-based]")
+    print("s7scan v1.02 [Python 2] [Scapy-based]")
     # Get user arguments
     parser, args = get_user_args(sys.argv[1:])
     # Validate user arguments
@@ -490,23 +411,9 @@ def main():
     # Run scan
     scanner = None
     if args.is_llc:
-        # For LLC we need to check whether WinPcap is installed first (in case we are running on Windows)
-        #system = platform.system()
-        #if system == 'Windows':
-        #    if not winpcap_installer.is_installed():
-        #        # WinPcap is not installed. We need to install it to continue
-        #        print "[Warning] WinPcap is not installed on the current Windows system. Do you want to install it (y/n)?"
-        #        print "It will be uninstalled automatically after scan"
-        #        if not ask_yes_no():
-        #            print "LLC scan without WinPcap is not supported. Terminating..."
-        #            return
-        #        else:
-        #            winpcap_installer.install()
-        #            reload(scapy)
         # Setup scanner
         scanner = PLC_Scanner(is_llc=True, ifname=args.iface, timeout=args.timeout, log_dir=args.log_dir)
         scanner.scan_llc(args.llc_hosts)
-        # winpcap_installer.uninstall()
     if args.is_tcp:
         # Setup scanner
         if scanner:
@@ -514,10 +421,6 @@ def main():
         else:
             scanner = PLC_Scanner(is_llc=False, ifname=None, timeout=args.timeout, log_dir=args.log_dir)
         scanner.scan_tcp(args.tcp_hosts, args.ports)
-    # Serialize collected data to the separate file using pickle
-    #if not args.no_log:
-    #    json.dump(scanner.results, open(args.log_file, "wb"), indent=4)
-    #    print("Scan results saved to {}".format(args.log_file))
 
 if __name__ == "__main__":
     try:
